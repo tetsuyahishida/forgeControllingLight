@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title>Very Basic 3D Viewer</title>
+		<link rel="stylesheet" href="https://developer.api.autodesk.com/derivativeservice/v2/viewers/style.css?v=v3.1.1" type="text/css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.js"></script>
+        <style>
+#info {
+	pointer-events: none;
+	width: 100%;
+	height: 100%;
+	z-index: 100;
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+		</style>
+	</head>
+
+	<body>
+		<div id="MyViewerDiv"></div>
+
+		<!-- The Viewer JS -->
+		<script src="https://developer.api.autodesk.com/derivativeservice/v2/viewers/three.js?v=v3.1.1"></script>
+		<script src="https://developer.api.autodesk.com/derivativeservice/v2/viewers/viewer3D.js?v=v3.1.1"></script>
+		<script src="InnerSelection.js"></script>
+
+		<!-- Developer JS -->
+		<script>
+var myViewerDiv = document.getElementById('MyViewerDiv');
+var viewer = new Autodesk.Viewing.Private.GuiViewer3D(myViewerDiv);
+var myLight = null
+
+var options = {
+	'env' : 'Local',
+	//'document' : './shaver/0.svf'
+	'document' :"./Resource/3D model/{3D} 136031/{3D}.svf"
+};
+
+Autodesk.Viewing.Initializer(options, function() {
+    viewer.initialize();
+    viewer.loadModel(options.document,options);    
+//    viewer.loadModel(options.document, null, onDocumentLoadSuccess,onDocumentLoadFailure)
+    
+    viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, onGeometryLoaded)
+    viewer.addEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, onItemSelected)
+    
+});
+
+
+var addLight = function (position) {
+    // create a sphere    
+    var sphere = new THREE.SphereGeometry(0.8, 50, 50);
+    var mesh = new THREE.Mesh(sphere, geoMaterial);
+    mesh.position.set(position.x, position.y, position.z);
+    var myScene = viewer.impl.scene.add(mesh);
+    if(myScene && myScene.children)
+        myLight = myScene.children[0]
+    console.log('created a mesh and added to the scene.' + mesh.name);
+    viewer.impl.sceneUpdated(true);
+}
+
+var removeLight = function( light ){
+    if(light)
+        viewer.impl.scene.remove(light)
+
+    console.log('removed a mesh and added to the scene.' + light.name);
+    viewer.impl.sceneUpdated(true);
+}
+
+function getModifiedWorldBoundingBox(fragIds, fragList) {
+
+    var fragbBox = new THREE.Box3();
+    var nodebBox = new THREE.Box3();
+
+    fragIds.forEach(function(fragId) {
+
+        fragList.getWorldBounds(fragId, fragbBox);
+        nodebBox.union(fragbBox);
+    });
+
+    return nodebBox;
+}
+         
+//function isLightObj(model, dbid, displayValue) {
+//    let isLight = false
+//    model.getProperties(dbid, function (result) {
+//        if (result.properties) {
+//            result.properties.forEach(function (prop) {
+//                console.log(prop)
+//                if (prop.displayValue === displayValue) {
+//                    isLight = true
+//
+//
+//                }
+//            })
+//        }
+//    })
+//    return isLight
+//
+//}
+
+
+function onItemSelected(event) {
+    console.log(event.dbIdArray[0]);
+    document.getElementById('log').innerText = 'Picked ID: ' + event.dbIdArray[0];
+    var bBox = getModifiedWorldBoundingBox(
+        event.fragIdsArray,
+        viewer.model.getFragmentList()
+    );
+    //   var isLight = isLightObj(viewer.model, event.dbIdArray[0], 'Picked ID' );
+
+
+    //    if (event.dbIdArray[0])
+    var positionOfLight = new THREE.Vector3((bBox.min.x + bBox.max.x) / 2, (bBox.min.y + bBox.max.y) / 2, (bBox.min.z + bBox.max.z) / 2);
+    //        addLight(positionOfLight)
+
+    viewer.model.getProperties(event.dbIdArray[0], function (result) {
+        if (result.properties) {
+            result.properties.forEach(function (prop) {
+                console.log(prop)
+                if (prop.displayValue === 'Revit 照明器具') {
+
+                    if (myLight) {
+                        removeLight(myLight)
+                        myLight = null
+                            $.getJSON('http://192.168.11.7:8080/v1/echonet/GenericIllumination_1/OperatingState/PUT?value=off&jsoncallback=?', content => {
+        alert(JSON.stringify(content, null, '\t'));
+    });
+                        
+                    } else {
+
+                        addLight(positionOfLight)
+                            $.getJSON('http://192.168.11.7:8080/v1/echonet/GenericIllumination_1/OperatingState/PUT?value=on&jsoncallback=?', content => {
+        alert(JSON.stringify(content, null, '\t'));
+    });
+                    }
+                }
+            })
+        }
+    })
+
+
+
+
+}
+
+var geoMaterial = null;
+var initMaterial = function(){
+    if( geoMaterial == null ){
+        geoMaterial = new THREE.MeshPhongMaterial({color: 0xff0000, specular: 0x009900, shininess: 30, 
+                                                 shading: THREE.FlatShading });
+        viewer.impl.matman().addMaterial( 'material-red', geoMaterial, true );
+        console.log('Red material is added');                
+    }
+};
+
+            
+var onGeometryLoaded = function () {
+
+    initMaterial()
+
+}
+    
+/*$.ajax(settings).done(function (response) {
+  console.log(response);
+});*/
+    
+//
+
+    function onDocumentLoadSuccess(doc) {
+
+    }
+    function onDocumentLoadFailure(viewerErrorCode) {
+        console.error('onDocumentLoadFailure() - errorCode:' + viewerErrorCode);
+    }
+    function onItemLoadSuccess(viewer, item) {
+        console.log('onItemLoadSuccess()!');
+    }
+    function onItemLoadFail(errorCode) {
+        console.error('onItemLoadFail() - errorCode:' + errorCode);
+    }
+
+
+		</script>
+		<div id="info">
+			<p id="log"></p>
+		</div>
+	</body>
+
+</html>
